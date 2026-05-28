@@ -222,3 +222,74 @@ function _matchValue(input, matcher) {
     var r = jamcrest.compare(input, matcher, {});
     return r.match;
 }
+
+// ---- Object/map matchers (Phase 8) ----
+
+function hasKey(k) {
+    return _make('hasKey(' + k + ')', function(v) {
+        return typeof v === 'object' && v !== null && v.hasOwnProperty(k);
+    });
+}
+
+function hasProperty(k, valueMatcher) {
+    var desc = valueMatcher ? 'hasProperty(' + k + ', ' + (valueMatcher.describe || valueMatcher) + ')' : 'hasProperty(' + k + ')';
+    return _make(desc, function(v) {
+        if (typeof v !== 'object' || v === null || !v.hasOwnProperty(k)) return false;
+        if (valueMatcher === undefined) return true;
+        return _matchValue(v[k], valueMatcher);
+    });
+}
+
+function aMapWithSize(n) {
+    return _make('aMapWithSize(' + n + ')', function(v) {
+        return typeof v === 'object' && v !== null && !Array.isArray(v) && Object.keys(v).length === n;
+    });
+}
+
+function anEmptyMap() {
+    return _make('anEmptyMap()', function(v) {
+        return typeof v === 'object' && v !== null && !Array.isArray(v) && Object.keys(v).length === 0;
+    });
+}
+
+function inCollection(collection) {
+    return _make('in(' + collection + ')', function(v) {
+        if (Array.isArray(collection)) {
+            for (var i = 0; i < collection.length; i++) {
+                if (_matchValue(v, collection[i])) return true;
+            }
+            return false;
+        }
+        return _matchValue(v, collection);
+    });
+}
+// Use 'inCollection' as the public name since 'in' is a reserved word in JS.
+// Alias: users can call in_() or inCollection() in matchers.
+
+// ---- Logical combinators (Phase 8) ----
+
+function not(m) {
+    var desc = 'not(' + (m && m.describe ? m.describe : m) + ')';
+    return _make(desc, function(v) { return !_matchValue(v, m); });
+}
+
+function anyOf() {
+    var matchers = Array.prototype.slice.call(arguments);
+    return _make('anyOf', function(v) {
+        for (var i = 0; i < matchers.length; i++) {
+            if (_matchValue(v, matchers[i])) return true;
+        }
+        return false;
+    });
+}
+
+// either(m).or(m2) — chained builder; diverges from raw factory pattern
+function either(m1) {
+    return {
+        or: function(m2) {
+            return _make('either(' + (m1.describe||m1) + ').or(' + (m2.describe||m2) + ')', function(v) {
+                return _matchValue(v, m1) || _matchValue(v, m2);
+            });
+        }
+    };
+}
