@@ -41,10 +41,46 @@ static std::string js_string_literal(const std::string& s) {
     return out + "\"";
 }
 
-static std::string unquote_json_string(const std::string& s) {
-    if (s.size() >= 2 && s.front() == '"' && s.back() == '"')
-        return s.substr(1, s.size() - 2);
-    return s;
+// Decode a JSON string literal ("...") into the actual string value.
+static std::string unescape_json_string(const std::string& s) {
+    if (s.size() < 2 || s.front() != '"' || s.back() != '"') return s;
+    std::string out;
+    out.reserve(s.size());
+    for (size_t i = 1; i < s.size() - 1; ) {
+        if (s[i] != '\\') { out += s[i++]; continue; }
+        if (++i >= s.size() - 1) break;
+        switch (s[i]) {
+            case '"':  out += '"';  break;
+            case '\\': out += '\\'; break;
+            case '/':  out += '/';  break;
+            case 'n':  out += '\n'; break;
+            case 'r':  out += '\r'; break;
+            case 't':  out += '\t'; break;
+            case 'b':  out += '\b'; break;
+            case 'f':  out += '\f'; break;
+            case 'u': {
+                if (i + 4 < s.size() - 1) {
+                    unsigned int cp = 0;
+                    for (int k = 1; k <= 4; k++) {
+                        char c = s[i + k];
+                        cp = cp * 16 + (c >= '0' && c <= '9' ? unsigned(c - '0') :
+                                        c >= 'a' && c <= 'f' ? unsigned(c - 'a' + 10) :
+                                        c >= 'A' && c <= 'F' ? unsigned(c - 'A' + 10) : 0u);
+                    }
+                    if      (cp < 0x80)  { out += char(cp); }
+                    else if (cp < 0x800) { out += char(0xC0 | cp >> 6); out += char(0x80 | (cp & 0x3F)); }
+                    else                 { out += char(0xE0 | cp >> 12);
+                                           out += char(0x80 | ((cp >> 6) & 0x3F));
+                                           out += char(0x80 | (cp & 0x3F)); }
+                    i += 4;
+                }
+                break;
+            }
+            default: out += s[i]; break;
+        }
+        i++;
+    }
+    return out;
 }
 
 int main(int argc, char* argv[]) {
@@ -128,7 +164,7 @@ int main(int argc, char* argv[]) {
     if (!matched && !args.quiet) {
         std::string diag;
         if (host.EvalReturn("(" + result_json + ").diagnostic || ''", "<diag>", diag, err))
-            diag = unquote_json_string(diag);
+            diag = unescape_json_string(diag);
         if (!diag.empty())
             std::fprintf(stderr, "%s\n", diag.c_str());
     }
