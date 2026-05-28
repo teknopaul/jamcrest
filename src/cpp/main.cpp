@@ -136,6 +136,13 @@ int main(int argc, char* argv[]) {
         return 2;
     }
 
+    // Strip trailing whitespace and semicolons so `matcher = {...};` is accepted
+    // alongside the bare-expression form `({...})`.
+    {
+        size_t end = matcher_src.find_last_not_of(" \t\r\n;");
+        if (end != std::string::npos) matcher_src.resize(end + 1);
+    }
+
     // Load matcher
     std::string matcher_eval = "globalThis.__matcher = (" + matcher_src + ");";
     if (!host.Eval(matcher_eval, args.matcher_path, err)) {

@@ -1,1 +1,1 @@
-({id: 1234, name: "Alice"})
+matcher = {"id": 1234, "name": "Alice"};
