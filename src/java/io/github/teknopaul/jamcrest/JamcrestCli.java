@@ -8,14 +8,16 @@ import java.nio.file.Path;
 /**
  * CLI entry point: reads JSON from stdin and matcher JS from a file or the second argument.
  *
- * Usage:
- *   java -jar jamcrest.jar --matcher <path> [--ignore-unknown] [--quiet]
- *   java -jar jamcrest.jar '<json>' '<matcherJs>'
+ * <pre>
+ * java -jar jamcrest.jar --matcher PATH [--ignore-unknown] [--quiet]
+ * java -jar jamcrest.jar JSON MATCHER_JS
+ * </pre>
  *
- * Exit codes: 0 = match, 1 = no-match, 2 = error
+ * <p>Exit codes: 0 = match, 1 = no-match, 2 = error
  */
 public class JamcrestCli {
 
+    /** Runs the CLI. */
     public static void main(String[] args) throws IOException {
         // Two-argument inline form: java -jar jamcrest.jar '<json>' '<matcherJs>'
         if (args.length == 2 && !args[0].startsWith("--")) {

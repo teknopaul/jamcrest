@@ -31,6 +31,7 @@ import java.nio.charset.StandardCharsets;
  */
 public class Jamcrest implements AutoCloseable {
 
+    /** Outcome of a match operation. {@code diagnostic} is null on success. */
     public record Result(boolean match, String diagnostic) {}
 
     private static final String[] JS_RESOURCES = {
@@ -41,6 +42,7 @@ public class Jamcrest implements AutoCloseable {
 
     private final Context ctx;
 
+    /** Creates a new instance, loading the embedded JS matcher library into a fresh GraalVM context. */
     public Jamcrest() {
         ctx = Context.newBuilder("js")
                 .allowAllAccess(false)
@@ -116,12 +118,28 @@ public class Jamcrest implements AutoCloseable {
 
     // --- Static convenience methods ---
 
+    /**
+     * One-shot match: creates a context, runs the comparison, and closes the context.
+     * Use the instance API for repeated calls.
+     *
+     * @param jsonInput the JSON to test, as a string
+     * @param matcherJs the matcher expression
+     * @return a {@link Result}
+     */
     public static Result match(String jsonInput, String matcherJs) {
         try (Jamcrest jmc = new Jamcrest()) {
             return jmc.compare(jsonInput, matcherJs);
         }
     }
 
+    /**
+     * One-shot match with the {@code ignoreUnknown} flag.
+     *
+     * @param jsonInput      the JSON to test, as a string
+     * @param matcherJs      the matcher expression
+     * @param ignoreUnknown  when true, extra keys in the input are not reported as mismatches
+     * @return a {@link Result}
+     */
     public static Result match(String jsonInput, String matcherJs, boolean ignoreUnknown) {
         try (Jamcrest jmc = new Jamcrest()) {
             return jmc.compare(jsonInput, matcherJs, ignoreUnknown);
