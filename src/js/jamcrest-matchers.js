@@ -293,3 +293,49 @@ function either(m1) {
         }
     };
 }
+
+// ---- Comparator factories (for use as the second argument to anySorted) ----
+// These return plain (a, b) => number comparator functions, not matcher functions.
+
+// Locale-aware string comparator.
+// localeCompare()                     — use runtime default locale
+// localeCompare("fr-FR")              — specific locale
+// localeCompare("en", {sensitivity:"base"})  — with Intl.Collator options
+function localeCompare(locale, options) {
+    if (locale) {
+        var collator = new Intl.Collator(locale, options || {});
+        return function(a, b) { return collator.compare(String(a), String(b)); };
+    }
+    return function(a, b) {
+        var sa = String(a), sb = String(b);
+        return sa.localeCompare(sb);
+    };
+}
+
+// Extract the value at a dot-notation path from an object.
+// getAtPath({a:{b:{c:1}}}, "a.b.c") === 1
+function _getAtPath(obj, path) {
+    var parts = path.split('.');
+    var cur = obj;
+    for (var i = 0; i < parts.length; i++) {
+        if (cur === null || cur === undefined) return undefined;
+        cur = cur[parts[i]];
+    }
+    return cur;
+}
+
+// Comparator that sorts objects by the value at a dot-notation field path.
+// compareByField("id")                        — numeric or lexicographic by type
+// compareByField("person.address.zip")        — nested path
+// compareByField("name", localeCompare("de")) — compose with a sub-comparator
+function compareByField(path, subComparator) {
+    return function(a, b) {
+        var va = _getAtPath(a, path);
+        var vb = _getAtPath(b, path);
+        if (subComparator) return subComparator(va, vb);
+        if (typeof va === 'number' && typeof vb === 'number') return va - vb;
+        var sa = String(va === undefined || va === null ? '' : va);
+        var sb = String(vb === undefined || vb === null ? '' : vb);
+        return sa < sb ? -1 : sa > sb ? 1 : 0;
+    };
+}
