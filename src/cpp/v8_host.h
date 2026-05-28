@@ -17,6 +17,9 @@ public:
     // Returns the JSON-stringified result in result_out, or error in err_out.
     bool Call(const std::string& fn_name, const std::string& arg_json,
               std::string& result_out, std::string& err_out);
+    // Evaluate expression and return JSON-stringified result
+    bool EvalReturn(const std::string& expr, const std::string& origin,
+                    std::string& result_out, std::string& err_out);
     void Shutdown();
 
 private:

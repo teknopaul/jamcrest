@@ -133,6 +133,35 @@ bool V8Host::Call(const std::string& fn_name, const std::string& arg_json,
     return true;
 }
 
+bool V8Host::EvalReturn(const std::string& expr, const std::string& origin,
+                        std::string& result_out, std::string& err_out) {
+    v8::Isolate::Scope isolate_scope(isolate_);
+    v8::HandleScope handle_scope(isolate_);
+    v8::Local<v8::Context> ctx = context_.Get(isolate_);
+    v8::Context::Scope context_scope(ctx);
+    v8::TryCatch tc(isolate_);
+
+    v8::ScriptOrigin script_origin(ToV8String(origin));
+    v8::Local<v8::Script> script;
+    if (!v8::Script::Compile(ctx, ToV8String(expr), &script_origin).ToLocal(&script)) {
+        err_out = FormatException(tc, origin);
+        return false;
+    }
+    v8::Local<v8::Value> result;
+    if (!script->Run(ctx).ToLocal(&result)) {
+        err_out = FormatException(tc, origin);
+        return false;
+    }
+    v8::Local<v8::Value> json_str;
+    if (!v8::JSON::Stringify(ctx, result).ToLocal(&json_str)) {
+        err_out = "failed to stringify result";
+        return false;
+    }
+    v8::String::Utf8Value utf8(isolate_, json_str);
+    result_out = *utf8 ? *utf8 : "null";
+    return true;
+}
+
 void V8Host::Shutdown() {
     if (isolate_) {
         context_.Reset();
