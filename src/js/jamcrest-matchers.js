@@ -141,3 +141,84 @@ function matchesPattern(re) {
 
 // Alias
 var matchesRegex = matchesPattern;
+
+// ---- Collection / array matchers (Phase 7) ----
+
+function empty() {
+    return _make('empty()', function(v) {
+        if (typeof v === 'string') return v.length === 0;
+        if (Array.isArray(v)) return v.length === 0;
+        if (typeof v === 'object' && v !== null) return Object.keys(v).length === 0;
+        return false;
+    });
+}
+
+function emptyArray() {
+    return _make('emptyArray()', function(v) { return Array.isArray(v) && v.length === 0; });
+}
+
+function arrayWithSize(n) {
+    return _make('arrayWithSize(' + n + ')', function(v) { return Array.isArray(v) && v.length === n; });
+}
+
+function arrayContaining() {
+    var expected = Array.prototype.slice.call(arguments);
+    return _make('arrayContaining(' + expected + ')', function(v) {
+        if (!Array.isArray(v)) return false;
+        for (var i = 0; i < expected.length; i++) {
+            var exp = expected[i];
+            var found = false;
+            for (var j = 0; j < v.length; j++) {
+                var match = _matchValue(v[j], exp);
+                if (match) { found = true; break; }
+            }
+            if (!found) return false;
+        }
+        return true;
+    });
+}
+
+function arrayContainingInAnyOrder() {
+    var expected = Array.prototype.slice.call(arguments);
+    return _make('arrayContainingInAnyOrder', function(v) {
+        if (!Array.isArray(v)) return false;
+        var remaining = v.slice();
+        for (var i = 0; i < expected.length; i++) {
+            var exp = expected[i];
+            var foundIdx = -1;
+            for (var j = 0; j < remaining.length; j++) {
+                if (_matchValue(remaining[j], exp)) { foundIdx = j; break; }
+            }
+            if (foundIdx === -1) return false;
+            remaining.splice(foundIdx, 1);
+        }
+        return true;
+    });
+}
+
+// Sort copies of both arrays with cmp, then element-wise compare (matchers allowed in expected).
+function anySorted(expected, cmp) {
+    return _make('anySorted', function(v) {
+        if (!Array.isArray(v)) return false;
+        var sortedInput    = v.slice().sort(cmp);
+        var sortedExpected = expected.slice().sort(cmp);
+        if (sortedInput.length !== sortedExpected.length) return false;
+        for (var i = 0; i < sortedExpected.length; i++) {
+            if (!_matchValue(sortedInput[i], sortedExpected[i])) return false;
+        }
+        return true;
+    });
+}
+
+// Internal helper: match a single value against a matcher-or-literal
+function _matchValue(input, matcher) {
+    if (typeof matcher === 'function' && matcher.__jamcrest) {
+        return !!matcher(input);
+    }
+    if (matcher === null) return input === null;
+    if (typeof matcher === 'number' && isNaN(matcher)) return typeof input === 'number' && isNaN(input);
+    if (typeof matcher !== 'object') return input === matcher;
+    // Deep structural match delegated back to jamcrest.compare
+    var r = jamcrest.compare(input, matcher, {});
+    return r.match;
+}
