@@ -3,7 +3,7 @@ CXX      ?= g++
 CXXFLAGS  = -std=c++17 -Wall -Wextra -Werror
 LDFLAGS   =
 
-SRC_CPP  = src/cpp/main.cpp
+SRC_CPP  = src/cpp/main.cpp src/cpp/v8_host.cpp
 TARGET   = target/jamcrest
 
 -include setup/.v8.mk

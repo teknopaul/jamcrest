@@ -60,7 +60,7 @@ try_libnode_dev() {
     else
         return 1
     fi
-    emit_v8_mk "-I$inc" "$lib"
+    emit_v8_mk "-isystem $inc" "$lib"
 }
 
 PM=$(detect_pkg_manager)
