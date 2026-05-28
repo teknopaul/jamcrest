@@ -1,0 +1,5 @@
+target/
+setup/_deps/
+setup/.v8.mk
+*.o
+*.d
