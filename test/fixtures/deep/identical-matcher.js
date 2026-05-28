@@ -1,0 +1,1 @@
+({name: "Bob", age: 30, scores: [10, 20, 30]})
