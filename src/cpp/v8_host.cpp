@@ -1,7 +1,5 @@
 #include "v8_host.h"
-#include <fstream>
 #include <sstream>
-#include <iostream>
 
 V8Host::V8Host() = default;
 
@@ -9,8 +7,7 @@ V8Host::~V8Host() {
     Shutdown();
 }
 
-bool V8Host::Init(const std::string& js_dir) {
-    js_dir_ = js_dir;
+bool V8Host::Init() {
     platform_ = v8::platform::NewDefaultPlatform();
     v8::V8::InitializePlatform(platform_.get());
     v8::V8::Initialize();
@@ -73,18 +70,6 @@ bool V8Host::Eval(const std::string& source, const std::string& origin,
         return false;
     }
     return true;
-}
-
-bool V8Host::LoadFile(const std::string& filename, std::string& err_out) {
-    std::string path = js_dir_ + "/" + filename;
-    std::ifstream f(path);
-    if (!f.is_open()) {
-        err_out = "cannot open: " + path;
-        return false;
-    }
-    std::ostringstream buf;
-    buf << f.rdbuf();
-    return Eval(buf.str(), path, err_out);
 }
 
 bool V8Host::Call(const std::string& fn_name, const std::string& arg_json,

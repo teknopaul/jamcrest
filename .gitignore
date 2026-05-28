@@ -1,6 +1,7 @@
 target/
 setup/_deps/
 setup/.v8.mk
+src/cpp/embedded_js.h
 *.o
 *.d
 jamcrest.geany

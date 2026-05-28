@@ -3,8 +3,9 @@ CXX      ?= g++
 CXXFLAGS  = -std=c++17 -Wall -Wextra -Werror
 LDFLAGS   =
 
-SRC_CPP  = src/cpp/main.cpp src/cpp/v8_host.cpp src/cpp/cli_args.cpp
-TARGET   = target/jamcrest
+SRC_CPP      = src/cpp/main.cpp src/cpp/v8_host.cpp src/cpp/cli_args.cpp
+TARGET       = target/jamcrest
+EMBEDDED_JS  = src/cpp/embedded_js.h
 
 -include setup/.v8.mk
 
@@ -15,8 +16,16 @@ LDFLAGS  += $(V8_LDFLAGS)
 
 all: $(TARGET)
 
-$(TARGET): $(SRC_CPP) | target
-	$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS)
+$(TARGET): $(SRC_CPP) $(EMBEDDED_JS) | target
+	$(CXX) $(CXXFLAGS) -o $@ $(SRC_CPP) $(LDFLAGS)
+
+$(EMBEDDED_JS): src/js/jamcrest-matchers.js src/js/jamcrest-impl.js src/js/jamcrest-bootstrap.js
+	@echo '// Auto-generated from src/js/ — do not edit' > $@
+	@echo '#pragma once' >> $@
+	@echo '#include <cstddef>' >> $@
+	xxd -i src/js/jamcrest-matchers.js  >> $@
+	xxd -i src/js/jamcrest-impl.js      >> $@
+	xxd -i src/js/jamcrest-bootstrap.js >> $@
 
 target:
 	mkdir -p target
@@ -25,7 +34,7 @@ setup:
 	bash setup/install-deps.sh
 
 clean:
-	rm -rf target
+	rm -rf target $(EMBEDDED_JS)
 
 distclean: clean
 	rm -rf setup/_deps setup/.v8.mk
@@ -36,5 +45,3 @@ test: all
 install: all
 	install -d $(PREFIX)/bin
 	install -m 755 $(TARGET) $(PREFIX)/bin/
-	install -d $(PREFIX)/share/jamcrest/js
-	cp -r src/js/. $(PREFIX)/share/jamcrest/js/

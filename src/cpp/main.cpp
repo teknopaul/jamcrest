@@ -1,32 +1,14 @@
 #include <cstdio>
 #include <cstring>
-#include <climits>
 #include <string>
 #include <fstream>
 #include <sstream>
 #include <iostream>
-#include <unistd.h>
 #include "v8_host.h"
 #include "cli_args.h"
+#include "embedded_js.h"
 
 #define JAMCREST_VERSION "0.1.0"
-
-static std::string locate_js_dir(const char* argv0) {
-    const char* env = std::getenv("JAMCREST_JS_DIR");
-    if (env && *env) return env;
-
-    char resolved[PATH_MAX];
-    if (realpath(argv0, resolved)) {
-        std::string bin(resolved);
-        auto slash = bin.rfind('/');
-        if (slash != std::string::npos) {
-            std::string share = bin.substr(0, slash) + "/../share/jamcrest/js";
-            if (access((share + "/jamcrest-impl.js").c_str(), R_OK) == 0)
-                return share;
-        }
-    }
-    return "./src/js";
-}
 
 static bool read_stdin(std::string& out, std::string& err) {
     std::ostringstream buf;
@@ -46,7 +28,6 @@ static bool read_file(const std::string& path, std::string& out, std::string& er
     return true;
 }
 
-// Produce a JS string literal (double-quoted) for embedding in source.
 static std::string js_string_literal(const std::string& s) {
     std::string out = "\"";
     for (unsigned char c : s) {
@@ -60,7 +41,6 @@ static std::string js_string_literal(const std::string& s) {
     return out + "\"";
 }
 
-// Strip one level of JSON string quotes from a JS string result like "\"foo\""
 static std::string unquote_json_string(const std::string& s) {
     if (s.size() >= 2 && s.front() == '"' && s.back() == '"')
         return s.substr(1, s.size() - 2);
@@ -97,10 +77,17 @@ int main(int argc, char* argv[]) {
     if (!read_file(args.matcher_path, matcher_src, err)) { std::fprintf(stderr, "jamcrest: %s\n", err.c_str()); return 2; }
 
     V8Host host;
-    if (!host.Init(locate_js_dir(argv[0]))) { std::fprintf(stderr, "jamcrest: failed to initialize V8\n"); return 2; }
+    if (!host.Init()) { std::fprintf(stderr, "jamcrest: failed to initialize V8\n"); return 2; }
 
-    for (const char* f : {"jamcrest-matchers.js", "jamcrest-impl.js", "jamcrest-bootstrap.js"}) {
-        if (!host.LoadFile(f, err)) { std::fprintf(stderr, "jamcrest: %s\n", err.c_str()); return 2; }
+    // Load embedded JS (compiled into binary via xxd -i)
+    struct { const unsigned char* data; unsigned int len; const char* name; } js[] = {
+        { src_js_jamcrest_matchers_js,  src_js_jamcrest_matchers_js_len,  "jamcrest-matchers.js"  },
+        { src_js_jamcrest_impl_js,      src_js_jamcrest_impl_js_len,      "jamcrest-impl.js"      },
+        { src_js_jamcrest_bootstrap_js, src_js_jamcrest_bootstrap_js_len, "jamcrest-bootstrap.js" },
+    };
+    for (auto& f : js) {
+        std::string src(reinterpret_cast<const char*>(f.data), f.len);
+        if (!host.Eval(src, f.name, err)) { std::fprintf(stderr, "jamcrest: %s\n", err.c_str()); return 2; }
     }
 
     // Validate JSON input
@@ -120,11 +107,9 @@ int main(int argc, char* argv[]) {
         return 2;
     }
 
-    // Build opts
     std::string opts_json =
         std::string("{\"ignoreUnknown\":") + (args.ignore_unknown ? "true" : "false") + "}";
 
-    // Run compare — parsed_input is already a JSON value; use it directly.
     std::string compare_expr =
         "jamcrest.compare(" + parsed_input + ", globalThis.__matcher, " + opts_json + ")";
     std::string result_json;
@@ -133,19 +118,16 @@ int main(int argc, char* argv[]) {
         return 2;
     }
 
-    // Extract result.match
-    std::string matched_expr = "(" + result_json + ").match";
     std::string matched_str;
-    if (!host.EvalReturn(matched_expr, "<result>", matched_str, err)) {
+    if (!host.EvalReturn("(" + result_json + ").match", "<result>", matched_str, err)) {
         std::fprintf(stderr, "jamcrest: %s\n", err.c_str());
         return 2;
     }
     bool matched = (matched_str == "true");
 
     if (!matched && !args.quiet) {
-        std::string diag_expr = "(" + result_json + ").diagnostic || ''";
         std::string diag;
-        if (host.EvalReturn(diag_expr, "<diag>", diag, err))
+        if (host.EvalReturn("(" + result_json + ").diagnostic || ''", "<diag>", diag, err))
             diag = unquote_json_string(diag);
         if (!diag.empty())
             std::fprintf(stderr, "%s\n", diag.c_str());
