@@ -1,6 +1,6 @@
 var jamcrest = (function() {
 
-    // Produce a short human-readable summary of a value.
+    // Short summary of an expected (matcher-side) value — always shows content.
     function preview(v) {
         if (v === null) return 'null';
         if (v === undefined) return 'undefined';
@@ -17,14 +17,24 @@ var jamcrest = (function() {
         return String(v);
     }
 
+    // Describe the actual (input-side) value for a "got X" message.
+    // Objects and arrays show only their type — never their content —
+    // because in real payloads they can be arbitrarily large.
+    function describeActual(v) {
+        if (v === null) return 'null';
+        if (v === undefined) return 'undefined';
+        if (Array.isArray(v)) return 'array';
+        if (typeof v === 'object') return 'object';
+        return typeof v + '(' + preview(v) + ')';
+    }
+
     // Accumulate all mismatches into `errors` array rather than stopping at first.
     function deepEqual(input, matcher, path, errors) {
         // Matcher function dispatch
         if (typeof matcher === 'function' && matcher.__jamcrest) {
             if (!matcher(input)) {
                 var desc = matcher.describe || String(matcher);
-                errors.push('at ' + path + ': expected ' + desc +
-                            ' got ' + typeof input + '(' + preview(input) + ')');
+                errors.push('at ' + path + ': expected ' + desc + ' got ' + describeActual(input));
             }
             return;
         }
@@ -32,7 +42,7 @@ var jamcrest = (function() {
         // null
         if (matcher === null) {
             if (input !== null)
-                errors.push('at ' + path + ': expected null got ' + preview(input));
+                errors.push('at ' + path + ': expected null got ' + describeActual(input));
             return;
         }
 
@@ -46,7 +56,7 @@ var jamcrest = (function() {
         // Primitives
         if (typeof matcher !== 'object') {
             if (input !== matcher)
-                errors.push('at ' + path + ': expected ' + preview(matcher) + ' got ' + preview(input));
+                errors.push('at ' + path + ': expected ' + preview(matcher) + ' got ' + describeActual(input));
             return;
         }
 
@@ -55,7 +65,7 @@ var jamcrest = (function() {
             // Single-matcher-applied-to-all rule
             if (matcher.length === 1 && typeof matcher[0] === 'function' && matcher[0].__jamcrest) {
                 if (!Array.isArray(input)) {
-                    errors.push('at ' + path + ': expected array got ' + typeof input + '(' + preview(input) + ')');
+                    errors.push('at ' + path + ': expected array got ' + describeActual(input));
                     return;
                 }
                 for (var i = 0; i < input.length; i++)
@@ -63,7 +73,7 @@ var jamcrest = (function() {
                 return;
             }
             if (!Array.isArray(input)) {
-                errors.push('at ' + path + ': expected array got ' + typeof input + '(' + preview(input) + ')');
+                errors.push('at ' + path + ': expected array got ' + describeActual(input));
                 return;
             }
             if (input.length !== matcher.length) {
@@ -78,7 +88,7 @@ var jamcrest = (function() {
 
         // Object
         if (typeof input !== 'object' || input === null || Array.isArray(input)) {
-            errors.push('at ' + path + ': expected object got ' + typeof input + '(' + preview(input) + ')');
+            errors.push('at ' + path + ': expected object got ' + describeActual(input));
             return;
         }
 
