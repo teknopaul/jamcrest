@@ -1,4 +1,4 @@
-package org.tp23.jamcrest;
+package io.github.teknopaul.jamcrest;
 
 import org.graalvm.polyglot.Context;
 import org.graalvm.polyglot.PolyglotException;

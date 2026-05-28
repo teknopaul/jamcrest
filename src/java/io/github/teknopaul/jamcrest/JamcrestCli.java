@@ -1,4 +1,4 @@
-package org.tp23.jamcrest;
+package io.github.teknopaul.jamcrest;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
