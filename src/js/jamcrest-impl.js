@@ -1,5 +1,29 @@
 var jamcrest = (function() {
 
+    var _opts = {};
+
+    function _getOpts() { return _opts; }
+
+    // Compound comparator built from an ordered list of field-name keys.
+    // Objects missing a key sort before objects that have it.
+    function _buildArraySortCmp(keys) {
+        return function(a, b) {
+            for (var i = 0; i < keys.length; i++) {
+                var k = keys[i];
+                var va = (a !== null && typeof a === 'object') ? a[k] : undefined;
+                var vb = (b !== null && typeof b === 'object') ? b[k] : undefined;
+                if (va === undefined && vb === undefined) continue;
+                if (va === undefined) return -1;
+                if (vb === undefined) return 1;
+                var n = (typeof va === 'number' && typeof vb === 'number')
+                    ? (va - vb)
+                    : (String(va) < String(vb) ? -1 : String(va) > String(vb) ? 1 : 0);
+                if (n !== 0) return n;
+            }
+            return 0;
+        };
+    }
+
     // Short summary of an expected (matcher-side) value — always shows content.
     function preview(v) {
         if (v === null) return 'null';
@@ -76,13 +100,27 @@ var jamcrest = (function() {
                 errors.push('at ' + path + ': expected array got ' + describeActual(input));
                 return;
             }
-            if (input.length !== matcher.length) {
-                errors.push('at ' + path + ': expected array length ' + matcher.length + ' got ' + input.length);
+            var cmpInput = input;
+            var cmpMatcher = matcher;
+            var sortKeys = deepEqual._arraySortKeys;
+            if (sortKeys && sortKeys.length > 0 && input.length > 0) {
+                if (typeof matcher[0] === 'function') {
+                    throw new Error('arraySortKeys cannot be combined with matcher functions in arrays at ' + path);
+                }
+                var firstElem = input[0];
+                if (firstElem !== null && typeof firstElem === 'object' && !Array.isArray(firstElem)) {
+                    var cmp = _buildArraySortCmp(sortKeys);
+                    cmpInput = input.slice().sort(cmp);
+                    cmpMatcher = matcher.slice().sort(cmp);
+                }
+            }
+            if (cmpInput.length !== cmpMatcher.length) {
+                errors.push('at ' + path + ': expected array length ' + cmpMatcher.length + ' got ' + cmpInput.length);
                 // Still compare up to min length so element errors are visible too
             }
-            var minLen = Math.min(input.length, matcher.length);
+            var minLen = Math.min(cmpInput.length, cmpMatcher.length);
             for (var j = 0; j < minLen; j++)
-                deepEqual(input[j], matcher[j], path + '[' + j + ']', errors);
+                deepEqual(cmpInput[j], cmpMatcher[j], path + '[' + j + ']', errors);
             return;
         }
 
@@ -115,12 +153,14 @@ var jamcrest = (function() {
 
     function compare(input, matcher, opts) {
         opts = opts || {};
+        _opts = opts;
         deepEqual._ignoreUnknown = !!(opts && opts.ignoreUnknown);
+        deepEqual._arraySortKeys = (opts.arraySortKeys && opts.arraySortKeys.length) ? opts.arraySortKeys : null;
         var errors = [];
         deepEqual(input, matcher, '$', errors);
         if (errors.length === 0) return { match: true };
         return { match: false, diagnostic: errors.join('\n') };
     }
 
-    return { compare: compare };
+    return { compare: compare, _getOpts: _getOpts };
 })();

@@ -90,6 +90,50 @@ people: anySorted([{name:"Alice"}, {name:"Bob"}], compareByField("name", localeC
 curl http://someapi/ | jamcrest --matcher ./api-matcher.js
 ```
 
+## Flags
+
+| Flag | Description |
+|---|---|
+| `--matcher <path>` | Path to the matcher JS file (required) |
+| `--ignore-unknown` / `--ignore-properties` | Ignore extra keys in the input that are not in the matcher |
+| `--quiet` | Suppress diagnostic output on mismatch |
+| `--var name=value` | Inject a string variable into the matcher's global context |
+| `--args=EXPR` / `--args EXPR` | Eval a JS object expression and spread its properties into the global context |
+| `--array-sort-keys=f1,f2,...` | Auto-sort all object arrays by the given fields before comparison (see below) |
+
+## Auto-sorting arrays with `--array-sort-keys`
+
+When the JSON you are validating contains arrays whose element order is non-deterministic (e.g. database result sets, API responses), you can instruct jamcrest to sort every array of objects before comparing:
+
+```bash
+curl http://someapi/users | jamcrest --matcher ./users-matcher.js --array-sort-keys=id
+```
+
+Fields are applied in priority order — the first field is the primary sort key, subsequent fields break ties:
+
+```bash
+jamcrest --matcher ./matcher.js --array-sort-keys=game,name,id
+```
+
+This sorts objects first by `game`, then by `name` within the same game, then by `id`.
+
+**How it works:** Both the input array and the matcher array are sorted by the same comparator before the element-wise comparison runs. Sorting is applied to any array whose elements are plain objects `{}`. Arrays of primitives (strings, numbers) are left unsorted.
+
+**Limitation:** `--array-sort-keys` is incompatible with jamcrest matcher functions inside arrays (e.g. `anyString()`, `greaterThan(n)`). Combining both is a user error; jamcrest will throw a runtime error if a matcher function is found as the first element of an array when this flag is set. This flag is intended for use with auto-generated matchers that are plain JSON objects.
+
+### Java API
+
+```java
+try (Jamcrest jmc = new Jamcrest().withArraySortKeys("id")) {
+    Result r = jmc.compare(jsonInput, matcherJs, false);
+}
+
+// Multiple keys (primary → tiebreaker order)
+try (Jamcrest jmc = new Jamcrest().withArraySortKeys("game", "name", "id")) {
+    Result r = jmc.compare(jsonInput, matcherJs, false);
+}
+```
+
 
 
 # Hamcrest matchers 
@@ -101,6 +145,7 @@ Matchers supported by Jamcrestare  based on [Hamcrest 2.2](https://hamcrest.org/
 (implemented in [jamcrest-matchers.js](src/js/jamcrest-matchers.js)
 
 - `aMapWithSize(n)` — matches when the object has exactly `n` keys.
+- `allOf(...matchers)` — matches if the value satisfies ALL of the specified matchers (logical AND). e.g. `allOf(greaterThan(0), lessThan(100))`.
 - `anEmptyMap()` — matches when the object has zero keys.
 - `any()` — matches any non-null, non-undefined value. N.B. in Jamcrest `any()` takes no argument; use `isA(type)` to match by type.
   - JavaScript type variants: `anyBoolean()`, `anyString()`, `anyNumber()`, `anyArray()`, `anyObject()`

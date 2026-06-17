@@ -218,8 +218,9 @@ function _matchValue(input, matcher) {
     if (matcher === null) return input === null;
     if (typeof matcher === 'number' && isNaN(matcher)) return typeof input === 'number' && isNaN(input);
     if (typeof matcher !== 'object') return input === matcher;
-    // Deep structural match delegated back to jamcrest.compare
-    var r = jamcrest.compare(input, matcher, {});
+    // Deep structural match delegated back to jamcrest.compare — forward active opts so
+    // arraySortKeys (and ignoreUnknown) propagate into nested comparisons.
+    var r = jamcrest.compare(input, matcher, jamcrest._getOpts ? jamcrest._getOpts() : {});
     return r.match;
 }
 
@@ -267,6 +268,16 @@ function inCollection(collection) {
 // Alias: users can call in_() or inCollection() in matchers.
 
 // ---- Logical combinators (Phase 8) ----
+
+function allOf() {
+    var matchers = Array.prototype.slice.call(arguments);
+    return _make('allOf', function(v) {
+        for (var i = 0; i < matchers.length; i++) {
+            if (!_matchValue(v, matchers[i])) return false;
+        }
+        return true;
+    });
+}
 
 function not(m) {
     var desc = 'not(' + (m && m.describe ? m.describe : m) + ')';

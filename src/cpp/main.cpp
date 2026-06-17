@@ -88,19 +88,24 @@ int main(int argc, char* argv[]) {
 
     if (!args.error.empty()) {
         std::fprintf(stderr, "jamcrest: %s\n", args.error.c_str());
-        std::fprintf(stderr, "Usage: jamcrest --matcher <path> [--ignore-unknown] [--quiet]\n");
+        std::fprintf(stderr, "Usage: jamcrest --matcher <path> [--ignore-unknown] [--quiet] [--var name=value]... [--args=EXPR] [--array-sort-keys=field,...]\n");
         return 2;
     }
     if (args.version) { std::printf("jamcrest %s\n", JAMCREST_VERSION); return 0; }
     if (args.help) {
         std::printf("Usage: jamcrest --matcher <path> [--ignore-unknown] [--quiet]\n");
+        std::printf("               [--var name=value]... [--args=EXPR]\n");
+        std::printf("               [--array-sort-keys=field1,field2,...]\n");
         std::printf("       Reads JSON from stdin, matches against matcher JS file.\n");
+        std::printf("       --var name=value            Set a String variable in the matcher global context.\n");
+        std::printf("       --args=EXPR                 Eval a JS object and spread its properties into global context.\n");
+        std::printf("       --array-sort-keys=f1,f2,..  Auto-sort all object arrays by these fields before comparison.\n");
         std::printf("       Exit: 0=match  1=no-match  2=error\n");
         return 0;
     }
     if (args.matcher_path.empty()) {
         std::fprintf(stderr, "jamcrest: --matcher is required\n");
-        std::fprintf(stderr, "Usage: jamcrest --matcher <path> [--ignore-unknown] [--quiet]\n");
+        std::fprintf(stderr, "Usage: jamcrest --matcher <path> [--ignore-unknown] [--quiet] [--var name=value]... [--args=EXPR]\n");
         return 2;
     }
 
@@ -124,6 +129,25 @@ int main(int argc, char* argv[]) {
     for (auto& f : js) {
         std::string src(reinterpret_cast<const char*>(f.data), f.len);
         if (!host.Eval(src, f.name, err)) { std::fprintf(stderr, "jamcrest: %s\n", err.c_str()); return 2; }
+    }
+
+    // Inject --var variables (always String)
+    for (auto& [name, val] : args.vars) {
+        std::string set_expr = "globalThis[" + js_string_literal(name) + "] = " + js_string_literal(val) + ";";
+        if (!host.Eval(set_expr, "<var>", err)) {
+            std::fprintf(stderr, "jamcrest: --var error: %s\n", err.c_str());
+            return 2;
+        }
+    }
+
+    // Inject --args expressions (any JS type; object properties spread into globalThis)
+    for (auto& expr : args.args_exprs) {
+        std::string set_expr =
+            "(function(__o){for(var __k in __o)globalThis[__k]=__o[__k];})(" + expr + ");";
+        if (!host.Eval(set_expr, "<args>", err)) {
+            std::fprintf(stderr, "jamcrest: --args error: %s\n", err.c_str());
+            return 2;
+        }
     }
 
     // Validate JSON input
@@ -150,8 +174,23 @@ int main(int argc, char* argv[]) {
         return 2;
     }
 
+    // Build arraySortKeys JSON array from comma-separated CLI value
+    std::string sort_keys_json = "[]";
+    if (!args.array_sort_keys.empty()) {
+        sort_keys_json = "[";
+        std::istringstream ss(args.array_sort_keys);
+        std::string key;
+        bool first_key = true;
+        while (std::getline(ss, key, ',')) {
+            if (!first_key) sort_keys_json += ",";
+            sort_keys_json += js_string_literal(key);
+            first_key = false;
+        }
+        sort_keys_json += "]";
+    }
     std::string opts_json =
-        std::string("{\"ignoreUnknown\":") + (args.ignore_unknown ? "true" : "false") + "}";
+        std::string("{\"ignoreUnknown\":") + (args.ignore_unknown ? "true" : "false") +
+        ",\"arraySortKeys\":" + sort_keys_json + "}";
 
     std::string compare_expr =
         "jamcrest.compare(" + parsed_input + ", globalThis.__matcher, " + opts_json + ")";

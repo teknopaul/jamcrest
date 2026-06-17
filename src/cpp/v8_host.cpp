@@ -153,7 +153,6 @@ void V8Host::Shutdown() {
         isolate_->Dispose();
         isolate_ = nullptr;
         v8::V8::Dispose();
-        v8::V8::ShutdownPlatform();
         platform_.reset();
     }
 }
