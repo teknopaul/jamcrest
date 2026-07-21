@@ -5,3 +5,5 @@ src/cpp/embedded_js.h
 *.o
 *.d
 jamcrest.geany
+.bzr/
+.bzrignore

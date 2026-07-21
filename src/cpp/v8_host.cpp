@@ -58,7 +58,7 @@ bool V8Host::Eval(const std::string& source, const std::string& origin,
     v8::Context::Scope context_scope(ctx);
     v8::TryCatch tc(isolate_);
 
-    v8::ScriptOrigin script_origin(ToV8String(origin));
+    v8::ScriptOrigin script_origin(isolate_, ToV8String(origin));
     v8::Local<v8::Script> script;
     if (!v8::Script::Compile(ctx, ToV8String(source), &script_origin).ToLocal(&script)) {
         err_out = FormatException(tc, origin);
@@ -126,7 +126,7 @@ bool V8Host::EvalReturn(const std::string& expr, const std::string& origin,
     v8::Context::Scope context_scope(ctx);
     v8::TryCatch tc(isolate_);
 
-    v8::ScriptOrigin script_origin(ToV8String(origin));
+    v8::ScriptOrigin script_origin(isolate_, ToV8String(origin));
     v8::Local<v8::Script> script;
     if (!v8::Script::Compile(ctx, ToV8String(expr), &script_origin).ToLocal(&script)) {
         err_out = FormatException(tc, origin);
