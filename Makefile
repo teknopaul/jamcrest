@@ -12,7 +12,7 @@ EMBEDDED_JS  = src/cpp/embedded_js.h
 CXXFLAGS += $(V8_CFLAGS)
 LDFLAGS  += $(V8_LDFLAGS)
 
-.PHONY: all clean distclean setup test install
+.PHONY: all clean distclean setup test install cppcheck
 
 all: $(TARGET)
 
@@ -45,3 +45,12 @@ test: all
 install: all
 	install -d $(PREFIX)/bin
 	install -m 755 $(TARGET) $(PREFIX)/bin/
+
+cppcheck:
+	@command -v cppcheck >/dev/null 2>&1 || \
+	    { echo "cppcheck not installed; skipping"; exit 0; }
+	cppcheck --enable=all --error-exitcode=1 \
+	    --suppress=missingIncludeSystem \
+	    --suppress=unmatchedSuppression \
+	    -I src/cpp \
+	    src/cpp/cli_args.cpp src/cpp/v8_host.cpp src/cpp/main.cpp

@@ -72,7 +72,7 @@ assert_output_contains() {
     shift 2
     local out
     out=$("$BINARY" "$@" < /dev/null 2>&1) || true
-    if echo "$out" | grep -q "$pattern"; then
+    if echo "$out" | grep -q -- "$pattern"; then
         pass "$label"
     else
         fail "$label (pattern '$pattern' not found in output: $out)"

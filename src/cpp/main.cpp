@@ -100,9 +100,70 @@ int main(int argc, char* argv[]) {
         std::printf("       --var name=value            Set a String variable in the matcher global context.\n");
         std::printf("       --args=EXPR                 Eval a JS object and spread its properties into global context.\n");
         std::printf("       --array-sort-keys=f1,f2,..  Auto-sort all object arrays by these fields before comparison.\n");
+        std::printf("       --template <path>           Render a JS template to JSON (requires --data).\n");
+        std::printf("       --data <path>               JS object supplying template variables.\n");
         std::printf("       Exit: 0=match  1=no-match  2=error\n");
         return 0;
     }
+
+    // Template mode: render JS template with data vars, output JSON to stdout.
+    if (!args.template_path.empty()) {
+        std::string data_src, tpl_src, err;
+
+        if (!read_file(args.data_path, data_src, err)) {
+            std::fprintf(stderr, "jamcrest: %s\n", err.c_str());
+            return 2;
+        }
+        if (!read_file(args.template_path, tpl_src, err)) {
+            std::fprintf(stderr, "jamcrest: %s\n", err.c_str());
+            return 2;
+        }
+
+        V8Host host;
+        if (!host.Init()) {
+            std::fprintf(stderr, "jamcrest: failed to initialize V8\n");
+            return 2;
+        }
+
+        // Load embedded jamcrest JS (needed for V8 global setup)
+        struct { const unsigned char* data; unsigned int len; const char* name; } js[] = {
+            { src_js_jamcrest_matchers_js,  src_js_jamcrest_matchers_js_len,  "jamcrest-matchers.js"  },
+            { src_js_jamcrest_impl_js,      src_js_jamcrest_impl_js_len,      "jamcrest-impl.js"      },
+            { src_js_jamcrest_bootstrap_js, src_js_jamcrest_bootstrap_js_len, "jamcrest-bootstrap.js" },
+        };
+        for (auto& f : js) {
+            std::string src(reinterpret_cast<const char*>(f.data), f.len);
+            if (!host.Eval(src, f.name, err)) {
+                std::fprintf(stderr, "jamcrest: %s\n", err.c_str());
+                return 2;
+            }
+        }
+
+        // Strip trailing whitespace/semicolons then spread data object into globalThis
+        auto strip_trailing = [](std::string& s) {
+            size_t end = s.find_last_not_of(" \t\r\n;");
+            if (end != std::string::npos) s.resize(end + 1);
+        };
+        strip_trailing(data_src);
+        std::string spread_expr =
+            "(function(__d){for(var __k in __d)globalThis[__k]=__d[__k];})(" + data_src + ");";
+        if (!host.Eval(spread_expr, args.data_path, err)) {
+            std::fprintf(stderr, "jamcrest: --data error: %s\n", err.c_str());
+            return 2;
+        }
+
+        // Evaluate template expression; EvalReturn JSON-stringifies the result
+        strip_trailing(tpl_src);
+        std::string result_json;
+        if (!host.EvalReturn(tpl_src, args.template_path, result_json, err)) {
+            std::fprintf(stderr, "jamcrest: --template error: %s\n", err.c_str());
+            return 2;
+        }
+
+        std::printf("%s\n", result_json.c_str());
+        return 0;
+    }
+
     if (args.matcher_path.empty()) {
         std::fprintf(stderr, "jamcrest: --matcher is required\n");
         std::fprintf(stderr, "Usage: jamcrest --matcher <path> [--ignore-unknown] [--quiet] [--var name=value]... [--args=EXPR]\n");
@@ -141,7 +202,7 @@ int main(int argc, char* argv[]) {
     }
 
     // Inject --args expressions (any JS type; object properties spread into globalThis)
-    for (auto& expr : args.args_exprs) {
+    for (const auto& expr : args.args_exprs) {
         std::string set_expr =
             "(function(__o){for(var __k in __o)globalThis[__k]=__o[__k];})(" + expr + ");";
         if (!host.Eval(set_expr, "<args>", err)) {

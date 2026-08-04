@@ -48,10 +48,22 @@ CliArgs CliArgs::parse(int argc, char* argv[]) {
                 return a;
             }
             a.array_sort_keys = argv[++i];
+        } else if (std::strcmp(arg, "--template") == 0) {
+            if (i + 1 >= argc) { a.error = "--template requires a path"; return a; }
+            a.template_path = argv[++i];
+        } else if (std::strcmp(arg, "--data") == 0) {
+            if (i + 1 >= argc) { a.error = "--data requires a path"; return a; }
+            a.data_path = argv[++i];
         } else {
             a.error = std::string("unknown flag: ") + arg;
             return a;
         }
     }
+    // --template and --matcher are mutually exclusive
+    if (!a.template_path.empty() && !a.matcher_path.empty())
+        a.error = "--template and --matcher are mutually exclusive";
+    // --template requires --data and vice versa
+    if (a.template_path.empty() != a.data_path.empty())
+        a.error = "--template and --data must be used together";
     return a;
 }

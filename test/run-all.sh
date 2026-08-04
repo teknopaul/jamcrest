@@ -28,7 +28,9 @@ run_suite() {
     echo ""
 }
 
-for script in "$SCRIPT_DIR"/phase*.sh "$SCRIPT_DIR"/test-*.sh; do
+for script in "$SCRIPT_DIR"/phase*.sh \
+              "$SCRIPT_DIR"/tpl-phase*.sh \
+              "$SCRIPT_DIR"/test-*.sh; do
     [ -f "$script" ] || continue
     name=$(basename "$script" .sh)
     echo "--- $name ---"
